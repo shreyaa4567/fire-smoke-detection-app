@@ -1,4 +1,4 @@
-"""Fire & Smoke Detection System
+Fire & Smoke Detection System
 =============================
 A real-time fire and smoke detection application built with YOLOv8 and Streamlit.
 Features five analysis modes: image upload, quick test samples, video upload with
@@ -1076,7 +1076,6 @@ def render_statistics(fire_total, smoke_total, avg_conf, peak_conf):
 
 MODES = [
     "📷 Image Upload",
-    "🔥 Quick Test",
     "🎥 Video Upload",
     "📹 Webcam",
     "🎬 Demo Mode",
@@ -1149,68 +1148,7 @@ if mode == "📷 Image Upload":
 
 
 # ═══════════════════════════════════════════
-# TAB 2: QUICK TEST SAMPLES
-# ═══════════════════════════════════════════
-
-elif mode == "🔥 Quick Test":
-
-    st.markdown('<div class="section-label">Quick Test Samples</div>', unsafe_allow_html=True)
-    st.markdown(
-        '<div class="sample-hint">Click any sample below to instantly test the model — no upload needed</div>',
-        unsafe_allow_html=True,
-    )
-
-    sample_dir = SAMPLE_IMAGES_DIR
-    sample_files = get_image_files(sample_dir)
-
-    if not sample_files:
-        st.markdown("""
-        <div class="empty-state">
-            <div class="empty-icon">📁</div>
-            <div class="empty-title">No Sample Images Found</div>
-            <div class="empty-sub">Add images to the <code>samples/</code> folder to enable Quick Test</div>
-            <div class="empty-formats">
-                <span class="fmt-tag">wildfire.jpg</span>
-                <span class="fmt-tag">industrial_smoke.jpg</span>
-                <span class="fmt-tag">forest_fire.jpg</span>
-                <span class="fmt-tag">safe_scene.jpg</span>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-    else:
-        # Build button grid (up to 4 per row)
-        num_cols = min(len(sample_files), 4)
-        cols = st.columns(num_cols)
-        for i, fpath in enumerate(sample_files):
-            fname = os.path.splitext(os.path.basename(fpath))[0]
-            display_name = fname.replace("_", " ").replace("-", " ").title()
-            icon = get_sample_icon(fname)
-            with cols[i % num_cols]:
-                if st.button(
-                    f"{icon} {display_name}",
-                    use_container_width=True,
-                    key=f"sample_btn_{i}",
-                ):
-                    st.session_state.selected_sample = fpath
-
-        # Process & display selected sample
-        selected = st.session_state.get("selected_sample")
-        if selected and os.path.exists(selected):
-            st.markdown("<br>", unsafe_allow_html=True)
-            image = Image.open(selected)
-            if image.mode == "RGBA":
-                image = image.convert("RGB")
-
-            with st.spinner("Analyzing..."):
-                start_time = time.time()
-                results = model.predict(image, conf=CONFIDENCE_THRESHOLD, iou=IOU_THRESHOLD, verbose=False)
-                inference_ms = (time.time() - start_time) * 1000
-
-            render_detection_results(image, results, inference_ms, key_prefix="sample")
-
-
-# ═══════════════════════════════════════════
-# TAB 3: VIDEO UPLOAD
+# TAB 2: VIDEO UPLOAD
 # ═══════════════════════════════════════════
 
 elif mode == "🎥 Video Upload":
@@ -1639,18 +1577,11 @@ if st.session_state.get("demo_running", False) and mode == "🎬 Demo Mode":
 st.markdown("<br><br>", unsafe_allow_html=True)
 st.markdown("""
 <div class="footer-container">
-    <div class="footer-title">🔥 Fire & Smoke Detection System</div>
-    <div class="footer-subtitle">Built with YOLOv8n + Streamlit</div>
-    <div class="footer-stats">
-        <span class="footer-stat">Dataset: Smoke-Fire-Detection-YOLO</span>
-        <span class="footer-stat">Model: YOLOv8n</span>
-        <span class="footer-stat">mAP50: 0.776</span>
-        <span class="footer-stat">Precision: 0.760</span>
-        <span class="footer-stat">Recall: 0.718</span>
-    </div>
     <div class="footer-author">
-        Built by <strong>Shreya Singh</strong> ·
-        <a href="#" target="_blank">GitHub Repository</a>
+        Built by <strong style="color:#666;">Shreya Singh</strong> &nbsp;·&nbsp;
+        <a href="https://github.com/shreyaa4567/fire-smoke-detection-app" target="_blank">GitHub Repository</a>
+        &nbsp;·&nbsp;
+        <a href="https://www.linkedin.com/in/shreya-singh-35bab7337/" target="_blank">LinkedIn</a>
     </div>
 </div>
-""", unsafe_allow_html=True)
+, unsafe_allow_html=True)
