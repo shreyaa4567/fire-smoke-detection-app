@@ -1,11 +1,12 @@
-"""Fire & Smoke Detection System - UX Redesigned v2
+"""Fire & Smoke Detection System - UX Fix v3
 
-====================================================
-Mobile-first, no-scroll layout with:
-- Image height capped, result always visible
-- Video with annotated overlay playback
-- Webcam auto-capture loop (~1 FPS live detection)
-- Demo mode as clickable thumbnail gallery
+================================================
+Fixes:
+- Result card font sizes increased
+- Video: auto-process on upload, fixed codec for browser playback
+- Webcam: simplified to auto-detect on every capture (no broken loop)
+- Demo: full-image thumbnails, result shown inline below grid
+- Mobile: reduced base64 overhead, cached detections
 
 Author: Shreya Singh
 License: MIT
@@ -41,7 +42,7 @@ st.set_page_config(
 )
 
 # ═══════════════════════════════════════════
-# CSS — Compact, Mobile-First, No-Scroll
+# CSS
 # ═══════════════════════════════════════════
 st.markdown("""
 <style>
@@ -69,29 +70,29 @@ st.markdown("""
 .stTabs [data-baseweb="tab"] { border-radius: 8px; border: 1px solid #1e1e1e; background: #0e0e0e; padding: 0.45rem 0.9rem; font-size: 0.85rem; }
 .stTabs [aria-selected="true"] { border-color: rgba(255,80,0,0.4); background: rgba(255,60,0,0.08); }
 
-/* RESULT CARD */
+/* RESULT CARD — font sizes increased */
 .result-card {
     background: #0a0a0a;
     border: 1px solid #1a1a1a;
     border-radius: 12px;
-    padding: 0.9rem 1rem;
+    padding: 1rem 1.1rem;
     margin-bottom: 0.75rem;
 }
-.result-title { font-size: 0.65rem; color: #444; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 0.4rem; font-weight: 600; }
-.risk-status { font-size: 0.9rem; font-weight: 600; margin-bottom: 0.3rem; }
+.result-title { font-size: 0.78rem; color: #555; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 0.45rem; font-weight: 600; }
+.risk-status { font-size: 1.15rem; font-weight: 700; margin-bottom: 0.35rem; }
 .risk-high { color: #f87171; }
 .risk-medium { color: #fb923c; }
 .risk-low { color: #4ade80; }
 .risk-safe { color: #60a5fa; }
-.confidence-text { font-size: 0.75rem; color: #555; font-family: 'JetBrains Mono', monospace; }
+.confidence-text { font-size: 0.92rem; color: #666; font-family: 'JetBrains Mono', monospace; }
 
 /* STAT ROW */
-.stat-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; margin-top: 0.6rem; }
-.stat-box { background: #0e0e0e; border: 1px solid #1a1a1a; border-radius: 8px; padding: 0.6rem; text-align: center; }
-.stat-value { font-size: 1.2rem; font-weight: 700; color: #ff6535; font-family: 'JetBrains Mono', monospace; }
-.stat-label { font-size: 0.62rem; color: #444; margin-top: 0.15rem; text-transform: uppercase; }
+.stat-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; margin-top: 0.7rem; }
+.stat-box { background: #0e0e0e; border: 1px solid #1a1a1a; border-radius: 8px; padding: 0.7rem; text-align: center; }
+.stat-value { font-size: 1.5rem; font-weight: 700; color: #ff6535; font-family: 'JetBrains Mono', monospace; }
+.stat-label { font-size: 0.75rem; color: #555; margin-top: 0.2rem; text-transform: uppercase; }
 
-/* CAPPED IMAGE — key fix for scroll problem */
+/* CAPPED IMAGE */
 .img-wrapper {
     background: #0e0e0e;
     border: 1px solid #1a1a1a;
@@ -107,7 +108,7 @@ st.markdown("""
     border-radius: 8px;
     display: block;
 }
-.output-label { font-size: 0.62rem; color: #444; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 0.35rem; }
+.output-label { font-size: 0.68rem; color: #555; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 0.35rem; }
 
 /* DETECTION LIST */
 .det-item {
@@ -117,22 +118,24 @@ st.markdown("""
     background: #0e0e0e;
     border-left: 3px solid #ff4500;
     border-radius: 0 8px 8px 0;
-    padding: 0.4rem 0.7rem;
+    padding: 0.45rem 0.8rem;
     margin-bottom: 0.25rem;
-    font-size: 0.82rem;
+    font-size: 0.9rem;
 }
 .det-item.smoke { border-left-color: #666; }
-.det-conf { font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; color: #555; }
+.det-conf { font-family: 'JetBrains Mono', monospace; font-size: 0.82rem; color: #666; }
+.expandable-title { font-size: 0.72rem; color: #555; text-transform: uppercase; letter-spacing: 1px; margin: 0.75rem 0 0.4rem; font-weight: 600; }
 
 /* DEMO THUMBNAIL GRID */
-.demo-grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 0.5rem;
-    margin-bottom: 0.75rem;
+.demo-thumb-img {
+    width: 100%;
+    aspect-ratio: 16/9;
+    object-fit: cover;
+    border-radius: 6px;
+    display: block;
 }
-.demo-thumb-label {
-    font-size: 0.6rem;
+.demo-thumb-name {
+    font-size: 0.65rem;
     color: #555;
     text-align: center;
     margin-top: 0.2rem;
@@ -140,45 +143,28 @@ st.markdown("""
     text-overflow: ellipsis;
     white-space: nowrap;
 }
-.demo-thumb-wrap {
-    cursor: pointer;
-    border-radius: 8px;
-    overflow: hidden;
-    border: 2px solid transparent;
-    transition: border-color 0.2s;
-}
-.demo-thumb-wrap.selected { border-color: #ff6535; }
-.demo-thumb-wrap img {
-    width: 100%;
-    height: 80px;
-    object-fit: cover;
-    border-radius: 6px;
-    display: block;
-}
 
 /* INPUT SECTION */
 .input-section {
     background: #0a0a0a;
     border: 1px dashed #1e1e1e;
     border-radius: 12px;
-    padding: 1rem;
+    padding: 1.2rem;
     color: #555;
     text-align: center;
+    font-size: 0.95rem;
 }
 
-/* EXPANDABLE */
-.expandable-title { font-size: 0.65rem; color: #444; text-transform: uppercase; letter-spacing: 1px; margin: 0.75rem 0 0.4rem; font-weight: 600; }
-
-/* WEBCAM LIVE STATUS */
-.live-badge {
-    display: inline-flex; align-items: center; gap: 0.3rem;
-    background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3);
-    color: #ef4444; font-size: 0.65rem; font-weight: 700;
-    padding: 0.15rem 0.5rem; border-radius: 12px; letter-spacing: 0.5px;
-    margin-bottom: 0.5rem;
+/* WEBCAM INFO */
+.webcam-info {
+    background: #0a0a0a;
+    border: 1px solid #1a1a1a;
+    border-radius: 10px;
+    padding: 0.7rem 1rem;
+    font-size: 0.85rem;
+    color: #666;
+    margin-bottom: 0.75rem;
 }
-.live-dot { width: 6px; height: 6px; background: #ef4444; border-radius: 50%; animation: pulse 1.2s infinite; }
-@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
 
 /* FOOTER */
 .footer {
@@ -192,10 +178,10 @@ st.markdown("""
 @media (max-width: 600px) {
     .header { padding: 0.6rem 0.8rem; }
     .header-title { font-size: 1.2rem; }
-    .stat-row { grid-template-columns: 1fr 1fr; }
-    .demo-grid { grid-template-columns: repeat(2, 1fr); }
-    .img-wrapper img { max-height: 38vh; }
+    .img-wrapper img { max-height: 35vh; }
     .stTabs [data-baseweb="tab"] { padding: 0.35rem 0.6rem; font-size: 0.75rem; }
+    .risk-status { font-size: 1rem; }
+    .stat-value { font-size: 1.25rem; }
 }
 
 #MainMenu { visibility: hidden; }
@@ -264,11 +250,11 @@ def render_result_card(fire_count, smoke_count, max_conf):
     </div>
     """, unsafe_allow_html=True)
 
-def render_capped_image(img_array, label="Detection Output"):
-    """Render image with max-height cap so it never pushes results off screen."""
+def render_capped_image(img_array, label="Output"):
+    """Render numpy image with max-height cap."""
     pil = Image.fromarray(img_array)
     buf = BytesIO()
-    pil.save(buf, format="JPEG", quality=88)
+    pil.save(buf, format="JPEG", quality=85)
     b64 = base64.b64encode(buf.getvalue()).decode()
     st.markdown(f"""
     <div class="img-wrapper">
@@ -277,20 +263,51 @@ def render_capped_image(img_array, label="Detection Output"):
     </div>
     """, unsafe_allow_html=True)
 
-def pil_to_b64(pil_img, size=(120, 80)):
-    """Thumbnail base64 for demo grid."""
-    pil_img = pil_img.copy()
-    pil_img.thumbnail(size, Image.LANCZOS)
+def render_detections_list(detections):
+    if detections:
+        st.markdown('<div class="expandable-title">Detected Objects</div>', unsafe_allow_html=True)
+        for label, conf in detections:
+            icon = "🌫" if label.lower() == "smoke" else "🔥"
+            css_cls = "smoke" if label.lower() == "smoke" else ""
+            st.markdown(
+                f'<div class="det-item {css_cls}"><span>{icon} {label.upper()}</span>'
+                f'<span class="det-conf">{conf*100:.1f}%</span></div>',
+                unsafe_allow_html=True
+            )
+
+def pil_to_b64_thumb(pil_img):
+    """Convert PIL image to base64 for thumbnail — preserves full image, no crop."""
+    thumb = pil_img.copy()
+    thumb.thumbnail((400, 225), Image.LANCZOS)  # 16:9 container, no crop
     buf = BytesIO()
-    pil_img.save(buf, format="JPEG", quality=75)
+    thumb.save(buf, format="JPEG", quality=72)
     return base64.b64encode(buf.getvalue()).decode()
 
-def run_detection(image: Image.Image):
-    """Run model and return results + timing."""
+@st.cache_data(show_spinner=False)
+def run_detection_cached(img_bytes: bytes):
+    """Cache detection results by image bytes — avoids re-running model on same image."""
+    image = Image.open(BytesIO(img_bytes)).convert("RGB")
     t0 = time.time()
     results = model.predict(image, conf=CONFIDENCE_THRESHOLD, iou=IOU_THRESHOLD, verbose=False)
     ms = round((time.time() - t0) * 1000, 1)
-    return results, ms
+    annotated = results[0].plot()  # numpy RGB
+    fire_count, smoke_count, max_conf, detections = analyze_detections(results)
+    return fire_count, smoke_count, max_conf, detections, annotated, ms
+
+def encode_video_for_browser(input_path: str) -> str:
+    """
+    Re-encode video with H.264 using ffmpeg for browser compatibility.
+    Falls back to raw mp4 if ffmpeg not available.
+    Returns path to output file.
+    """
+    out_path = input_path.replace(".mp4", "_h264.mp4")
+    ret = os.system(
+        f'ffmpeg -y -i "{input_path}" -vcodec libx264 -crf 28 -preset fast '
+        f'-movflags +faststart -acodec aac "{out_path}" -loglevel quiet'
+    )
+    if ret == 0 and os.path.exists(out_path):
+        return out_path
+    return input_path  # fallback to original if ffmpeg unavailable
 
 # ═══════════════════════════════════════════
 # HEADER
@@ -313,7 +330,7 @@ st.markdown("""
 tab1, tab2, tab3, tab4 = st.tabs(["📷 Image", "🎥 Video", "📹 Webcam", "🎬 Demo"])
 
 # ───────────────────────────────────────────
-# TAB 1: IMAGE — result card ABOVE capped image
+# TAB 1: IMAGE
 # ───────────────────────────────────────────
 with tab1:
     uploaded_file = st.file_uploader(
@@ -322,61 +339,43 @@ with tab1:
     )
 
     if uploaded_file:
-        image = Image.open(uploaded_file)
-        if image.mode == "RGBA":
-            image = image.convert("RGB")
+        img_bytes = uploaded_file.read()
+        fire_count, smoke_count, max_conf, detections, annotated, ms = run_detection_cached(img_bytes)
 
-        results, inference_ms = run_detection(image)
-        fire_count, smoke_count, max_conf, detections = analyze_detections(results)
-
-        # 1. Result card — always visible above the fold
+        # Result card always above images
         render_result_card(fire_count, smoke_count, max_conf)
 
-        # 2. Two-column layout: original | annotated — both height-capped
-        col_orig, col_det = st.columns(2)
-        with col_orig:
-            orig_arr = np.array(image)
-            render_capped_image(orig_arr, "Original")
-        with col_det:
-            result_arr = results[0].plot()
-            render_capped_image(result_arr, "Annotated")
+        # Side-by-side original + annotated
+        col_o, col_a = st.columns(2)
+        with col_o:
+            orig = np.array(Image.open(BytesIO(img_bytes)).convert("RGB"))
+            render_capped_image(orig, "Original")
+        with col_a:
+            render_capped_image(annotated, f"Annotated · {ms}ms")
 
-        # 3. Detection list
-        if detections:
-            st.markdown('<div class="expandable-title">Detected Objects</div>', unsafe_allow_html=True)
-            for label, conf in detections:
-                icon = "🌫" if label.lower() == "smoke" else "🔥"
-                css_cls = "smoke" if label.lower() == "smoke" else ""
-                st.markdown(
-                    f'<div class="det-item {css_cls}"><span>{icon} {label.upper()}</span>'
-                    f'<span class="det-conf">{conf*100:.1f}%</span></div>',
-                    unsafe_allow_html=True
-                )
+        render_detections_list(detections)
 
-        # 4. Technical details collapsed
         with st.expander("📊 Technical Details"):
+            img_pil = Image.open(BytesIO(img_bytes))
             c1, c2 = st.columns(2)
-            c1.metric("Inference Time", f"{inference_ms} ms")
-            c2.metric("Resolution", f"{image.size[0]}×{image.size[1]}")
+            c1.metric("Inference Time", f"{ms} ms")
+            c2.metric("Resolution", f"{img_pil.size[0]}×{img_pil.size[1]}")
 
-        # 5. Download
-        result_pil = Image.fromarray(results[0].plot())
         buf = BytesIO()
-        result_pil.save(buf, format="JPEG")
+        Image.fromarray(annotated).save(buf, format="JPEG")
         st.download_button(
             "⬇ Download Result", buf.getvalue(),
             "detection_result.jpg", "image/jpeg",
             use_container_width=True
         )
-
     else:
         st.markdown(
-            '<div class="input-section">📷 <strong>Upload an image</strong> to detect fire and smoke</div>',
+            '<div class="input-section">📷 Upload an image to detect fire and smoke</div>',
             unsafe_allow_html=True
         )
 
 # ───────────────────────────────────────────
-# TAB 2: VIDEO — annotated overlay video playback
+# TAB 2: VIDEO — auto-process on upload, overlay playback
 # ───────────────────────────────────────────
 with tab2:
     video_file = st.file_uploader(
@@ -385,251 +384,194 @@ with tab2:
     )
 
     if video_file:
-        # Frame-skip slider so users can control speed vs detail
         frame_skip = st.slider(
             "Processing speed (higher = faster, fewer frames annotated)",
-            min_value=1, max_value=10, value=3,
-            help="1 = every frame (slow), 10 = every 10th frame (fast)"
+            min_value=1, max_value=10, value=3
         )
 
-        if st.button("▶ Process & Play Video", use_container_width=True):
-            tfile = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
-            tfile.write(video_file.read())
-            tfile.flush()
+        # Auto-process — no button needed
+        tfile = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
+        tfile.write(video_file.read())
+        tfile.flush()
+        tfile.close()
 
-            cap = cv2.VideoCapture(tfile.name)
-            total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-            fps = cap.get(cv2.CAP_PROP_FPS) or 25
-            width  = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-            height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        cap = cv2.VideoCapture(tfile.name)
+        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        fps = cap.get(cv2.CAP_PROP_FPS) or 25
+        width  = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
-            # Output video file
-            out_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
-            out_path = out_file.name
-            out_file.close()
+        out_tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
+        out_path = out_tmp.name
+        out_tmp.close()
 
-            fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-            writer = cv2.VideoWriter(out_path, fourcc, fps, (width, height))
+        # Use mp4v first; will re-encode with ffmpeg after
+        fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+        writer = cv2.VideoWriter(out_path, fourcc, fps, (width, height))
 
-            progress = st.progress(0, text="Annotating frames…")
-            fire_total = smoke_total = 0
-            frame_idx = 0
-            last_annotated = None
+        progress = st.progress(0, text="Processing video…")
+        fire_total = smoke_total = 0
+        frame_idx = 0
+        last_annotated_bgr = None
 
-            while cap.isOpened():
-                ret, frame = cap.read()
-                if not ret:
-                    break
+        while cap.isOpened():
+            ret, frame = cap.read()
+            if not ret:
+                break
 
-                if frame_idx % frame_skip == 0:
-                    img = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
-                    results = model.predict(img, conf=CONFIDENCE_THRESHOLD, iou=IOU_THRESHOLD, verbose=False)
+            if frame_idx % frame_skip == 0:
+                img = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+                results = model.predict(img, conf=CONFIDENCE_THRESHOLD, iou=IOU_THRESHOLD, verbose=False)
 
-                    for box in results[0].boxes:
-                        lbl = model.names[int(box.cls[0])]
-                        if lbl.lower() == "fire": fire_total += 1
-                        elif lbl.lower() == "smoke": smoke_total += 1
+                for box in results[0].boxes:
+                    lbl = model.names[int(box.cls[0])]
+                    if lbl.lower() == "fire":   fire_total  += 1
+                    elif lbl.lower() == "smoke": smoke_total += 1
 
-                    annotated = results[0].plot()  # RGB numpy
-                    last_annotated = annotated
-                    frame_bgr = cv2.cvtColor(annotated, cv2.COLOR_RGB2BGR)
-                else:
-                    # For skipped frames, use last annotated frame (smooth playback)
-                    if last_annotated is not None:
-                        frame_bgr = cv2.cvtColor(last_annotated, cv2.COLOR_RGB2BGR)
-                    else:
-                        frame_bgr = frame
+                annotated_rgb = results[0].plot()
+                last_annotated_bgr = cv2.cvtColor(annotated_rgb, cv2.COLOR_RGB2BGR)
 
-                writer.write(frame_bgr)
-                progress.progress(
-                    min((frame_idx + 1) / max(total_frames, 1), 1.0),
-                    text=f"Annotating frame {frame_idx+1} / {total_frames}…"
-                )
-                frame_idx += 1
+            writer.write(last_annotated_bgr if last_annotated_bgr is not None else frame)
+            progress.progress(
+                min((frame_idx + 1) / max(total_frames, 1), 1.0),
+                text=f"Frame {frame_idx+1} / {total_frames}…"
+            )
+            frame_idx += 1
 
-            cap.release()
-            writer.release()
-            os.unlink(tfile.name)
-            progress.empty()
+        cap.release()
+        writer.release()
+        os.unlink(tfile.name)
+        progress.empty()
 
-            # Result summary
-            max_conf_est = 0.85 if (fire_total + smoke_total) > 0 else 0.0
-            render_result_card(fire_total, smoke_total, max_conf_est)
+        # Re-encode to H.264 for browser playback
+        final_path = encode_video_for_browser(out_path)
 
-            # Play annotated video inline — no download needed to see detections
-            with open(out_path, "rb") as vf:
-                video_bytes = vf.read()
-            st.video(video_bytes)
+        # Result card
+        max_conf_est = 0.85 if (fire_total + smoke_total) > 0 else 0.0
+        render_result_card(fire_total, smoke_total, max_conf_est)
+
+        # Play annotated video inline
+        with open(final_path, "rb") as vf:
+            st.video(vf.read())
+
+        # Cleanup
+        try:
             os.unlink(out_path)
+            if final_path != out_path:
+                os.unlink(final_path)
+        except Exception:
+            pass
 
-            with st.expander("📊 Video Details"):
-                c1, c2, c3 = st.columns(3)
-                c1.metric("Frames", total_frames)
-                c2.metric("FPS", int(fps))
-                c3.metric("Duration", f"{round(total_frames/fps, 1)}s")
+        with st.expander("📊 Video Details"):
+            c1, c2, c3 = st.columns(3)
+            c1.metric("Frames", total_frames)
+            c2.metric("FPS", int(fps))
+            c3.metric("Duration", f"{round(total_frames/fps, 1)}s")
 
     else:
         st.markdown(
-            '<div class="input-section">🎥 <strong>Upload a video</strong> — annotated overlay plays in browser</div>',
+            '<div class="input-section">🎥 Upload a video — detection boxes overlay on playback</div>',
             unsafe_allow_html=True
         )
 
 # ───────────────────────────────────────────
-# TAB 3: WEBCAM — auto-capture loop (~1 FPS)
+# TAB 3: WEBCAM
+# Simplified: auto-detect on every new capture. No broken rerun loop.
 # ───────────────────────────────────────────
 with tab3:
     st.markdown(
-        '<div class="live-badge"><span class="live-dot"></span>LIVE DETECTION</div>',
+        '<div class="webcam-info">📹 Take a photo — detection runs instantly. '
+        'Retake to scan again.</div>',
         unsafe_allow_html=True
     )
-    st.caption("Camera captures automatically every second. Point at fire or smoke to detect.")
 
-    # Controls
-    col_btn1, col_btn2 = st.columns(2)
-    with col_btn1:
-        start_live = st.button("▶ Start Live Detection", use_container_width=True)
-    with col_btn2:
-        stop_live = st.button("⏹ Stop", use_container_width=True)
-
-    if "webcam_running" not in st.session_state:
-        st.session_state.webcam_running = False
-
-    if start_live:
-        st.session_state.webcam_running = True
-    if stop_live:
-        st.session_state.webcam_running = False
-
-    # Camera input — always visible
-    webcam_img = st.camera_input(
-        "Camera feed",
-        label_visibility="collapsed",
-        key="webcam_capture"
-    )
-
-    result_placeholder = st.empty()
-    image_placeholder  = st.empty()
-    dets_placeholder   = st.empty()
+    webcam_img = st.camera_input("", label_visibility="collapsed")
 
     if webcam_img:
-        image = Image.open(webcam_img)
-        if image.mode == "RGBA":
-            image = image.convert("RGB")
+        img_bytes = webcam_img.getvalue()
+        fire_count, smoke_count, max_conf, detections, annotated, ms = run_detection_cached(img_bytes)
 
-        results, inference_ms = run_detection(image)
-        fire_count, smoke_count, max_conf, detections = analyze_detections(results)
-
-        with result_placeholder.container():
-            render_result_card(fire_count, smoke_count, max_conf)
-
-        with image_placeholder.container():
-            result_arr = results[0].plot()
-            render_capped_image(result_arr, f"Detection · {inference_ms}ms")
-
-        with dets_placeholder.container():
-            if detections:
-                st.markdown('<div class="expandable-title">Detected Objects</div>', unsafe_allow_html=True)
-                for label, conf in detections:
-                    icon = "🌫" if label.lower() == "smoke" else "🔥"
-                    css_cls = "smoke" if label.lower() == "smoke" else ""
-                    st.markdown(
-                        f'<div class="det-item {css_cls}"><span>{icon} {label.upper()}</span>'
-                        f'<span class="det-conf">{conf*100:.1f}%</span></div>',
-                        unsafe_allow_html=True
-                    )
-
-        # Auto-rerun loop when live mode is on
-        if st.session_state.webcam_running:
-            time.sleep(1.0)
-            st.rerun()
-
-    elif st.session_state.webcam_running:
-        # No image yet — wait and rerun
-        time.sleep(0.8)
-        st.rerun()
+        render_result_card(fire_count, smoke_count, max_conf)
+        render_capped_image(annotated, f"Detection · {ms}ms")
+        render_detections_list(detections)
+    else:
+        st.markdown(
+            '<div class="input-section" style="margin-top:0.5rem;">Point camera and tap the button above</div>',
+            unsafe_allow_html=True
+        )
 
 # ───────────────────────────────────────────
-# TAB 4: DEMO — clickable thumbnail gallery
+# TAB 4: DEMO — full-image thumbnail grid + inline result
 # ───────────────────────────────────────────
 with tab4:
-    demo_dir = DEMO_IMAGES_DIR
-
-    if not os.path.exists(demo_dir):
-        os.makedirs(demo_dir)
+    if not os.path.exists(DEMO_IMAGES_DIR):
+        os.makedirs(DEMO_IMAGES_DIR)
 
     demo_images = sorted([
-        f for f in os.listdir(demo_dir)
+        f for f in os.listdir(DEMO_IMAGES_DIR)
         if f.lower().endswith((".jpg", ".jpeg", ".png", ".bmp", ".webp"))
     ])
 
     if not demo_images:
         st.markdown(
-            '<div class="input-section">🎬 <strong>No demo images found</strong> — add images to demo_images/ folder</div>',
+            '<div class="input-section">🎬 No demo images found — add images to demo_images/ folder</div>',
             unsafe_allow_html=True
         )
     else:
-        # Session state for selected image
         if "demo_selected" not in st.session_state:
             st.session_state.demo_selected = 0
 
-        st.markdown('<div class="expandable-title">Choose an image</div>', unsafe_allow_html=True)
-
-        # Build thumbnail grid using Streamlit columns (3 per row)
+        # ── Thumbnail grid (3 per row, full image visible, aspect-ratio preserved)
         cols_per_row = 3
         rows = [demo_images[i:i+cols_per_row] for i in range(0, len(demo_images), cols_per_row)]
 
         for row_imgs in rows:
             cols = st.columns(cols_per_row)
-            for col_i, fname in enumerate(row_imgs):
+            for ci, fname in enumerate(row_imgs):
                 idx = demo_images.index(fname)
-                img_path = os.path.join(demo_dir, fname)
-                thumb = Image.open(img_path).convert("RGB")
-                b64 = pil_to_b64(thumb)
-                is_selected = (st.session_state.demo_selected == idx)
-                border = "#ff6535" if is_selected else "#1a1a1a"
-                short_name = fname[:14] + "…" if len(fname) > 14 else fname
+                img_path = os.path.join(DEMO_IMAGES_DIR, fname)
+                thumb_pil = Image.open(img_path).convert("RGB")
+                b64 = pil_to_b64_thumb(thumb_pil)
+                is_sel = (st.session_state.demo_selected == idx)
+                border = "#ff6535" if is_sel else "#222"
+                short = fname[:16] + "…" if len(fname) > 16 else fname
 
-                with cols[col_i]:
+                with cols[ci]:
+                    # Full image visible (object-fit: contain, not cover)
                     st.markdown(
-                        f'<div style="border:2px solid {border}; border-radius:8px; overflow:hidden; margin-bottom:4px;">'
-                        f'<img src="data:image/jpeg;base64,{b64}" style="width:100%;height:72px;object-fit:cover;display:block;" />'
+                        f'<div style="border:2px solid {border};border-radius:8px;'
+                        f'background:#111;overflow:hidden;padding:3px;">'
+                        f'<img src="data:image/jpeg;base64,{b64}" '
+                        f'style="width:100%;height:90px;object-fit:contain;display:block;border-radius:5px;"/>'
                         f'</div>'
-                        f'<div style="font-size:0.6rem;color:#555;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{short_name}</div>',
+                        f'<div class="demo-thumb-name">{short}</div>',
                         unsafe_allow_html=True
                     )
-                    if st.button("Select", key=f"demo_sel_{idx}", use_container_width=True):
+                    if st.button("Select", key=f"ds_{idx}", use_container_width=True):
                         st.session_state.demo_selected = idx
                         st.rerun()
 
         st.divider()
 
-        # Show detection for selected image
-        selected_fname = demo_images[st.session_state.demo_selected]
-        selected_path  = os.path.join(demo_dir, selected_fname)
-        image = Image.open(selected_path).convert("RGB")
+        # ── Detection result shown inline right below grid — no tab switch needed
+        sel_fname = demo_images[st.session_state.demo_selected]
+        sel_path  = os.path.join(DEMO_IMAGES_DIR, sel_fname)
 
-        results, inference_ms = run_detection(image)
-        fire_count, smoke_count, max_conf, detections = analyze_detections(results)
+        with open(sel_path, "rb") as f:
+            img_bytes = f.read()
 
-        # Result card — always above image
+        fire_count, smoke_count, max_conf, detections, annotated, ms = run_detection_cached(img_bytes)
+
         render_result_card(fire_count, smoke_count, max_conf)
 
-        # Side-by-side original + annotated
         col_o, col_a = st.columns(2)
         with col_o:
-            render_capped_image(np.array(image), "Original")
+            orig = np.array(Image.open(BytesIO(img_bytes)).convert("RGB"))
+            render_capped_image(orig, "Original")
         with col_a:
-            render_capped_image(results[0].plot(), f"Annotated · {inference_ms}ms")
+            render_capped_image(annotated, f"Annotated · {ms}ms")
 
-        if detections:
-            st.markdown('<div class="expandable-title">Detected Objects</div>', unsafe_allow_html=True)
-            for label, conf in detections:
-                icon = "🌫" if label.lower() == "smoke" else "🔥"
-                css_cls = "smoke" if label.lower() == "smoke" else ""
-                st.markdown(
-                    f'<div class="det-item {css_cls}"><span>{icon} {label.upper()}</span>'
-                    f'<span class="det-conf">{conf*100:.1f}%</span></div>',
-                    unsafe_allow_html=True
-                )
+        render_detections_list(detections)
 
 # ═══════════════════════════════════════════
 # FOOTER
