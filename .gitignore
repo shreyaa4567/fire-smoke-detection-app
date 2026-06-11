@@ -19,6 +19,7 @@ venv/
 ENV/
 env/
 .conda/
+pyvenv.cfg
 
 # ═══════════════════════════════════════════
 # IDE / Editor
