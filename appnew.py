@@ -1,12 +1,13 @@
-"""Fire & Smoke Detection System - UX Fix v4
+"""Fire & Smoke Detection System - v5
 
 ================================================
-Fixes:
-- Header gap removed, font sizes increased
-- Demo: 5 columns per row, smaller thumbnails, full image visible
-- Video: frame-buffer slideshow (no codec issues)
-- Mobile: original + annotated side by side forced via CSS
-- Result card fonts larger throughout
+Changes from v4:
+- Confidence threshold slider in sidebar (default 0.25, was hardcoded 0.15)
+- Video: fix risk level to use actual max_conf across all frames
+- Video: detection timeline showing timestamps of fire/smoke events
+- Video: download button for annotated frames as ZIP
+- Performance: reduced redundant re-renders in video/webcam tabs
+- Webcam label updated to reflect snapshot (not live)
 
 Author: Shreya Singh
 License: MIT
@@ -21,13 +22,13 @@ import os
 import cv2
 import tempfile
 import base64
+import zipfile
 from io import BytesIO
 
 # ═══════════════════════════════════════════
 # CONFIGURATION
 # ═══════════════════════════════════════════
-MODEL_PATH = "best_shreya_v2.pt"
-CONFIDENCE_THRESHOLD = 0.15
+MODEL_PATH    = "best_shreya_v2.pt"
 IOU_THRESHOLD = 0.45
 DEMO_IMAGES_DIR = "demo_images"
 
@@ -51,12 +52,10 @@ st.markdown("""
 * { font-family: 'Inter', sans-serif; box-sizing: border-box; }
 .stApp { background-color: #080808; color: #e8e8e8; }
 
-/* Remove Streamlit default top gap */
 header[data-testid="stHeader"] { height: 0 !important; min-height: 0 !important; }
 div[data-testid="stToolbar"] { display: none !important; }
 .block-container { padding-top: 1rem !important; }
 
-/* HEADER */
 .header {
     background: linear-gradient(160deg, #140500 0%, #1f0800 40%, #140500 100%);
     border: 1px solid rgba(255, 80, 0, 0.35);
@@ -75,12 +74,10 @@ div[data-testid="stToolbar"] { display: none !important; }
 .header-badges { display: flex; gap: 0.5rem; justify-content: center; flex-wrap: wrap; margin-top: 0.6rem; }
 .badge { background: rgba(255,69,0,0.1); border: 1px solid rgba(255,69,0,0.25); color: #cc5522; font-size: 0.75rem; padding: 0.18rem 0.55rem; border-radius: 12px; font-weight: 600; }
 
-/* TABS */
 .stTabs [data-baseweb="tab-list"] { gap: 0.5rem; background: transparent; }
 .stTabs [data-baseweb="tab"] { border-radius: 8px; border: 1px solid #1e1e1e; background: #0e0e0e; padding: 0.45rem 0.9rem; font-size: 0.85rem; }
 .stTabs [aria-selected="true"] { border-color: rgba(255,80,0,0.4); background: rgba(255,60,0,0.08); }
 
-/* RESULT CARD */
 .result-card {
     background: #0a0a0a;
     border: 1px solid #1a1a1a;
@@ -100,7 +97,6 @@ div[data-testid="stToolbar"] { display: none !important; }
 .stat-value { font-size: 1.1rem; font-weight: 700; color: #ff6535; font-family: 'JetBrains Mono', monospace; }
 .stat-label { font-size: 0.65rem; color: #555; margin-top: 0.1rem; text-transform: uppercase; }
 
-/* CAPPED IMAGE */
 .img-wrapper {
     background: #0e0e0e;
     border: 1px solid #1a1a1a;
@@ -118,17 +114,9 @@ div[data-testid="stToolbar"] { display: none !important; }
 }
 .output-label { font-size: 0.68rem; color: #555; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 0.3rem; }
 
-/* FORCE side-by-side columns on ALL screen sizes including mobile */
-div[data-testid="stHorizontalBlock"] {
-    flex-wrap: nowrap !important;
-    gap: 0.5rem;
-}
-div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"] {
-    min-width: 0 !important;
-    flex: 1 1 0 !important;
-}
+div[data-testid="stHorizontalBlock"] { flex-wrap: nowrap !important; gap: 0.5rem; }
+div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"] { min-width: 0 !important; flex: 1 1 0 !important; }
 
-/* DETECTION LIST */
 .det-item {
     display: flex;
     justify-content: space-between;
@@ -144,7 +132,6 @@ div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"] {
 .det-conf { font-family: 'JetBrains Mono', monospace; font-size: 0.82rem; color: #666; }
 .expandable-title { font-size: 0.72rem; color: #555; text-transform: uppercase; letter-spacing: 1px; margin: 0.75rem 0 0.4rem; font-weight: 600; }
 
-/* INPUT SECTION */
 .input-section {
     background: #0a0a0a;
     border: 1px dashed #1e1e1e;
@@ -155,7 +142,6 @@ div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"] {
     font-size: 0.95rem;
 }
 
-/* WEBCAM INFO */
 .webcam-info {
     background: #0a0a0a;
     border: 1px solid #1a1a1a;
@@ -166,7 +152,22 @@ div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"] {
     margin-bottom: 0.75rem;
 }
 
-/* FOOTER */
+/* Timeline */
+.timeline-item {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.3rem 0.6rem;
+    border-left: 2px solid #1a1a1a;
+    margin-bottom: 0.2rem;
+    font-size: 0.8rem;
+}
+.timeline-item.fire  { border-left-color: #ff4500; }
+.timeline-item.smoke { border-left-color: #888; }
+.timeline-ts { font-family: 'JetBrains Mono', monospace; color: #555; min-width: 42px; }
+.timeline-label { color: #aaa; }
+.timeline-conf  { color: #555; margin-left: auto; font-family: 'JetBrains Mono', monospace; }
+
 .footer {
     text-align: center; padding-top: 0.75rem;
     border-top: 1px solid #1a1a1a; margin-top: 1.2rem;
@@ -174,11 +175,9 @@ div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"] {
 }
 .footer a { color: #ff6535; text-decoration: none; }
 
-/* DEMO CARD — hover feedback */
 .demo-card { cursor: pointer; transition: transform 0.15s; }
 .demo-card:hover { transform: scale(1.04); filter: brightness(1.15); }
 
-/* MOBILE */
 @media (max-width: 640px) {
     .header-title { font-size: 1.4rem; }
     .header-sub   { font-size: 0.72rem; }
@@ -193,6 +192,21 @@ footer { visibility: hidden; }
 .stDeployButton { display: none; }
 </style>
 """, unsafe_allow_html=True)
+
+# ═══════════════════════════════════════════
+# SIDEBAR — Confidence slider
+# ═══════════════════════════════════════════
+with st.sidebar:
+    st.markdown("### ⚙️ Detection Settings")
+    CONFIDENCE_THRESHOLD = st.slider(
+        "Confidence Threshold",
+        min_value=0.10, max_value=0.90,
+        value=0.25, step=0.05,
+        help="Lower = more detections (more false positives). Higher = stricter (may miss some)."
+    )
+    st.caption(f"Current: **{CONFIDENCE_THRESHOLD:.2f}** · Recommended: 0.25–0.40")
+    st.markdown("---")
+    st.caption("YOLOv8n · mAP50: 0.776 · Recall: 0.718")
 
 # ═══════════════════════════════════════════
 # LOAD MODEL
@@ -277,16 +291,40 @@ def render_detections_list(detections):
                 unsafe_allow_html=True
             )
 
-def pil_to_b64_thumb(pil_img: Image.Image) -> str:
-    thumb = pil_img.copy()
-    thumb.thumbnail((200, 130), Image.LANCZOS)
+def render_detection_timeline(timeline: list):
+    """Render a timeline of detection events from video processing.
+    timeline: list of (timestamp_sec, label, conf)
+    """
+    if not timeline:
+        return
+    st.markdown('<div class="expandable-title">Detection Timeline</div>', unsafe_allow_html=True)
+    for ts, label, conf in timeline:
+        mins = int(ts // 60)
+        secs = int(ts % 60)
+        ts_str = f"{mins}:{secs:02d}"
+        icon = "🔥" if label.lower() == "fire" else "🌫"
+        css_cls = "fire" if label.lower() == "fire" else "smoke"
+        st.markdown(
+            f'<div class="timeline-item {css_cls}">'
+            f'<span class="timeline-ts">{ts_str}</span>'
+            f'<span class="timeline-label">{icon} {label.upper()}</span>'
+            f'<span class="timeline-conf">{conf*100:.0f}%</span>'
+            f'</div>',
+            unsafe_allow_html=True
+        )
+
+def frames_to_zip(frames: list) -> bytes:
+    """Pack annotated frames into a ZIP of JPEGs."""
     buf = BytesIO()
-    thumb.save(buf, format="JPEG", quality=70)
-    return base64.b64encode(buf.getvalue()).decode()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for i, frame in enumerate(frames):
+            img_buf = BytesIO()
+            Image.fromarray(frame).save(img_buf, format="JPEG", quality=80)
+            zf.writestr(f"frame_{i+1:04d}.jpg", img_buf.getvalue())
+    return buf.getvalue()
 
 @st.cache_data(show_spinner=False)
 def get_demo_thumb_b64(img_path: str) -> str:
-    """Cached thumbnail generator — avoids reopening large images on every rerun."""
     thumb = Image.open(img_path).convert("RGB")
     thumb.thumbnail((200, 130), Image.LANCZOS)
     buf = BytesIO()
@@ -294,11 +332,11 @@ def get_demo_thumb_b64(img_path: str) -> str:
     return base64.b64encode(buf.getvalue()).decode()
 
 @st.cache_data(show_spinner=False)
-def run_detection_cached(img_bytes: bytes):
+def run_detection_cached(img_bytes: bytes, conf: float):
     image = Image.open(BytesIO(img_bytes)).convert("RGB")
     orig_array = np.array(image)
     t0 = time.time()
-    results = model.predict(image, conf=CONFIDENCE_THRESHOLD, iou=IOU_THRESHOLD, verbose=False)
+    results = model.predict(image, conf=conf, iou=IOU_THRESHOLD, verbose=False)
     ms = round((time.time() - t0) * 1000, 1)
     annotated = results[0].plot()
     fire_count, smoke_count, max_conf, detections = analyze_detections(results)
@@ -322,7 +360,7 @@ st.markdown("""
 # ═══════════════════════════════════════════
 # TABS
 # ═══════════════════════════════════════════
-tab1, tab2, tab3, tab4 = st.tabs(["📷 Image", "🎥 Video", "📹 Webcam", "🎬 Demo"])
+tab1, tab2, tab3, tab4 = st.tabs(["📷 Image", "🎥 Video", "📸 Webcam", "🎬 Demo"])
 
 # ───────────────────────────────────────────
 # TAB 1: IMAGE
@@ -334,7 +372,7 @@ with tab1:
     )
     if uploaded_file:
         img_bytes = uploaded_file.read()
-        fire_count, smoke_count, max_conf, detections, annotated, ms, orig = run_detection_cached(img_bytes)
+        fire_count, smoke_count, max_conf, detections, annotated, ms, orig = run_detection_cached(img_bytes, CONFIDENCE_THRESHOLD)
 
         col_o, col_a = st.columns(2)
         with col_o:
@@ -343,7 +381,6 @@ with tab1:
             render_capped_image(annotated, f"Annotated · {ms}ms")
 
         render_result_card(fire_count, smoke_count, max_conf)
-
         render_detections_list(detections)
 
         with st.expander("📊 Technical Details"):
@@ -365,13 +402,13 @@ with tab1:
         )
 
 # ───────────────────────────────────────────
-# TAB 2: VIDEO — frame-buffer playback, no codec issues
+# TAB 2: VIDEO
 # ───────────────────────────────────────────
 with tab2:
     frame_skip = st.slider(
         "Frames to skip (higher = faster processing)",
         min_value=1, max_value=15, value=5,
-        help="Set before uploading. 1 = every frame (slow), 15 = every 15th frame (fast)"
+        help="1 = every frame (slow but thorough), 15 = every 15th frame (fast)"
     )
 
     video_file = st.file_uploader(
@@ -380,7 +417,8 @@ with tab2:
     )
 
     if video_file:
-        vid_key = f"{video_file.name}_{video_file.size}"
+        # Include confidence in the key so changing the slider re-processes
+        vid_key = f"{video_file.name}_{video_file.size}_{CONFIDENCE_THRESHOLD}_{frame_skip}"
         needs_processing = st.session_state.get("vid_processed_key") != vid_key
 
         if needs_processing:
@@ -390,7 +428,7 @@ with tab2:
             tfile.flush()
             tfile.close()
 
-            cap = cv2.VideoCapture(tfile.name)
+            cap          = cv2.VideoCapture(tfile.name)
             total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
             fps          = cap.get(cv2.CAP_PROP_FPS) or 25
 
@@ -398,6 +436,7 @@ with tab2:
             fire_total = smoke_total = 0
             max_conf_video = 0.0
             annotated_frames = []
+            timeline_events  = []   # (timestamp_sec, label, conf)
             last_annotated   = None
             frame_idx        = 0
 
@@ -407,21 +446,28 @@ with tab2:
                     break
 
                 if frame_idx % frame_skip == 0:
-                    img = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+                    img     = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
                     results = model.predict(
                         img, conf=CONFIDENCE_THRESHOLD,
                         iou=IOU_THRESHOLD, verbose=False
                     )
+                    timestamp_sec = frame_idx / fps
+
                     for box in results[0].boxes:
-                        lbl = model.names[int(box.cls[0])]
+                        lbl    = model.names[int(box.cls[0])]
                         conf_v = float(box.conf[0])
                         max_conf_video = max(max_conf_video, conf_v)
-                        if lbl.lower() == "fire":    fire_total  += 1
-                        elif lbl.lower() == "smoke": smoke_total += 1
+                        if lbl.lower() == "fire":
+                            fire_total += 1
+                            timeline_events.append((timestamp_sec, "fire", conf_v))
+                        elif lbl.lower() == "smoke":
+                            smoke_total += 1
+                            timeline_events.append((timestamp_sec, "smoke", conf_v))
+
                     last_annotated = results[0].plot()
 
-                if frame_idx % frame_skip == 0 and last_annotated is not None and len(annotated_frames) < 50:
-                    annotated_frames.append(last_annotated)
+                    if len(annotated_frames) < 50 and last_annotated is not None:
+                        annotated_frames.append(last_annotated)
 
                 progress.progress(
                     min((frame_idx + 1) / max(total_frames, 1), 1.0),
@@ -433,21 +479,22 @@ with tab2:
             os.unlink(tfile.name)
             progress.empty()
 
-            st.session_state["vid_frames"]    = annotated_frames
-            st.session_state["vid_fps"]       = fps
-            st.session_state["vid_fire"]      = fire_total
-            st.session_state["vid_smoke"]     = smoke_total
-            st.session_state["vid_total"]     = total_frames
-            st.session_state["vid_max_conf"]  = max_conf_video
-            st.session_state["vid_playing"]   = False
+            st.session_state["vid_frames"]   = annotated_frames
+            st.session_state["vid_fps"]      = fps
+            st.session_state["vid_fire"]     = fire_total
+            st.session_state["vid_smoke"]    = smoke_total
+            st.session_state["vid_total"]    = total_frames
+            st.session_state["vid_max_conf"] = max_conf_video
+            st.session_state["vid_timeline"] = timeline_events
 
         if "vid_frames" in st.session_state and st.session_state["vid_frames"]:
             frames      = st.session_state["vid_frames"]
             fps         = st.session_state["vid_fps"]
             fire_total  = st.session_state["vid_fire"]
             smoke_total = st.session_state["vid_smoke"]
-
             max_conf_vid = st.session_state.get("vid_max_conf", 0.0)
+            timeline     = st.session_state.get("vid_timeline", [])
+
             render_result_card(fire_total, smoke_total, max_conf_vid)
 
             frame_idx = st.slider(
@@ -457,14 +504,32 @@ with tab2:
             st.image(frames[frame_idx], use_container_width=True)
             st.caption(f"Frame {frame_idx + 1} / {len(frames)} · {int(fps)} FPS")
 
+            # Download ZIP of annotated frames
+            zip_bytes = frames_to_zip(frames)
+            st.download_button(
+                "⬇ Download Annotated Frames (ZIP)",
+                zip_bytes,
+                "annotated_frames.zip",
+                "application/zip",
+                use_container_width=True
+            )
+
+            # Detection timeline
+            with st.expander(f"🕐 Detection Timeline ({len(timeline)} events)"):
+                if timeline:
+                    render_detection_timeline(timeline)
+                else:
+                    st.caption("No detections found in this video.")
+
             with st.expander("📊 Video Details"):
                 c1, c2, c3 = st.columns(3)
-                c1.metric("Frames", st.session_state["vid_total"])
+                c1.metric("Total Frames", st.session_state["vid_total"])
                 c2.metric("FPS", int(fps))
                 c3.metric("Duration", f"{round(st.session_state['vid_total']/fps, 1)}s")
 
     else:
-        for k in ["vid_frames","vid_fps","vid_fire","vid_smoke","vid_total","vid_playing","vid_processed_key","vid_max_conf"]:
+        for k in ["vid_frames","vid_fps","vid_fire","vid_smoke","vid_total",
+                  "vid_processed_key","vid_max_conf","vid_timeline"]:
             st.session_state.pop(k, None)
         st.markdown(
             '<div class="input-section">🎥 Upload a video — detection runs automatically</div>',
@@ -478,14 +543,14 @@ with tab3:
     cam_col, ann_col = st.columns(2)
     with cam_col:
         st.markdown(
-            '<div class="webcam-info">📹 Take a photo — detection runs instantly.</div>',
+            '<div class="webcam-info">📸 Capture a snapshot — detection runs instantly on the photo.</div>',
             unsafe_allow_html=True
         )
         webcam_img = st.camera_input("Capture", label_visibility="collapsed")
 
     if webcam_img:
         img_bytes = webcam_img.getvalue()
-        fire_count, smoke_count, max_conf, detections, annotated, ms, orig = run_detection_cached(img_bytes)
+        fire_count, smoke_count, max_conf, detections, annotated, ms, orig = run_detection_cached(img_bytes, CONFIDENCE_THRESHOLD)
 
         with ann_col:
             st.caption(f"ANNOTATED · {ms}MS")
@@ -501,7 +566,7 @@ with tab3:
             )
 
 # ───────────────────────────────────────────
-# TAB 4: DEMO — 5-per-row thumbnail grid
+# TAB 4: DEMO
 # ───────────────────────────────────────────
 with tab4:
     if not os.path.exists(DEMO_IMAGES_DIR):
@@ -562,7 +627,7 @@ with tab4:
         with open(sel_path, "rb") as f:
             img_bytes = f.read()
 
-        fire_count, smoke_count, max_conf, detections, annotated, ms, orig = run_detection_cached(img_bytes)
+        fire_count, smoke_count, max_conf, detections, annotated, ms, orig = run_detection_cached(img_bytes, CONFIDENCE_THRESHOLD)
 
         col_o, col_a = st.columns(2)
         with col_o:
@@ -571,7 +636,6 @@ with tab4:
             render_capped_image(annotated, f"Annotated · {ms}ms")
 
         render_result_card(fire_count, smoke_count, max_conf)
-
         render_detections_list(detections)
 
 # ═══════════════════════════════════════════
