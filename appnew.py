@@ -112,6 +112,33 @@ div[data-testid="stToolbar"] { display: none !important; }
     border-radius: 6px;
     display: block;
 }
+
+/* Webcam columns — force both sides to same fixed height */
+.webcam-col-wrap {
+    background: #0e0e0e;
+    border: 1px solid #1a1a1a;
+    border-radius: 12px;
+    padding: 0.5rem;
+    height: 340px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+.webcam-col-wrap img,
+.webcam-col-wrap video,
+.webcam-col-wrap canvas {
+    flex: 1;
+    width: 100%;
+    object-fit: contain;
+    border-radius: 6px;
+    min-height: 0;
+}
+
+/* Fix the big flash / oversized camera widget on load */
+div[data-testid="stCameraInput"] > div { max-height: 300px !important; }
+div[data-testid="stCameraInput"] video { max-height: 260px !important; object-fit: contain !important; }
+div[data-testid="stCameraInput"] canvas { max-height: 260px !important; object-fit: contain !important; }
+
 .output-label { font-size: 0.68rem; color: #555; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 0.3rem; }
 
 div[data-testid="stHorizontalBlock"] { flex-wrap: nowrap !important; gap: 0.5rem; }
@@ -152,21 +179,34 @@ div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"] { min-width: 
     margin-bottom: 0.75rem;
 }
 
-/* Timeline */
-.timeline-item {
-    display: flex;
-    align-items: center;
-    gap: 0.6rem;
-    padding: 0.3rem 0.6rem;
-    border-left: 2px solid #1a1a1a;
-    margin-bottom: 0.2rem;
-    font-size: 0.8rem;
+/* Video frame: smaller display */
+.video-frame-wrap {
+    background: #0e0e0e;
+    border: 1px solid #1a1a1a;
+    border-radius: 12px;
+    padding: 0.5rem;
+    margin-bottom: 0.5rem;
 }
-.timeline-item.fire  { border-left-color: #ff4500; }
-.timeline-item.smoke { border-left-color: #888; }
-.timeline-ts { font-family: 'JetBrains Mono', monospace; color: #555; min-width: 42px; }
-.timeline-label { color: #aaa; }
-.timeline-conf  { color: #555; margin-left: auto; font-family: 'JetBrains Mono', monospace; }
+.video-frame-wrap img {
+    width: 100%;
+    max-height: 28vh;
+    object-fit: contain;
+    border-radius: 6px;
+    display: block;
+}
+
+/* Demo grid: clickable card, no button */
+.demo-card {
+    cursor: pointer;
+    transition: transform 0.15s;
+    border-radius: 6px;
+    overflow: hidden;
+}
+.demo-card:hover { transform: scale(1.04); filter: brightness(1.15); }
+
+/* Hide the invisible Streamlit button used for demo click */
+.demo-btn-hidden { position: absolute; opacity: 0; width: 100%; height: 100%; top: 0; left: 0; cursor: pointer; }
+.demo-card-wrap { position: relative; }
 
 .footer {
     text-align: center; padding-top: 0.75rem;
@@ -174,9 +214,6 @@ div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"] { min-width: 
     font-size: 0.7rem; color: #333;
 }
 .footer a { color: #ff6535; text-decoration: none; }
-
-.demo-card { cursor: pointer; transition: transform 0.15s; }
-.demo-card:hover { transform: scale(1.04); filter: brightness(1.15); }
 
 @media (max-width: 640px) {
     .header-title { font-size: 1.4rem; }
@@ -291,28 +328,6 @@ def render_detections_list(detections):
                 unsafe_allow_html=True
             )
 
-def render_detection_timeline(timeline: list):
-    """Render a timeline of detection events from video processing.
-    timeline: list of (timestamp_sec, label, conf)
-    """
-    if not timeline:
-        return
-    st.markdown('<div class="expandable-title">Detection Timeline</div>', unsafe_allow_html=True)
-    for ts, label, conf in timeline:
-        mins = int(ts // 60)
-        secs = int(ts % 60)
-        ts_str = f"{mins}:{secs:02d}"
-        icon = "🔥" if label.lower() == "fire" else "🌫"
-        css_cls = "fire" if label.lower() == "fire" else "smoke"
-        st.markdown(
-            f'<div class="timeline-item {css_cls}">'
-            f'<span class="timeline-ts">{ts_str}</span>'
-            f'<span class="timeline-label">{icon} {label.upper()}</span>'
-            f'<span class="timeline-conf">{conf*100:.0f}%</span>'
-            f'</div>',
-            unsafe_allow_html=True
-        )
-
 def frames_to_zip(frames: list) -> bytes:
     """Pack annotated frames into a ZIP of JPEGs."""
     buf = BytesIO()
@@ -402,7 +417,7 @@ with tab1:
         )
 
 # ───────────────────────────────────────────
-# TAB 2: VIDEO
+# TAB 2: VIDEO  (smaller frame + no timeline)
 # ───────────────────────────────────────────
 with tab2:
     frame_skip = st.slider(
@@ -417,7 +432,6 @@ with tab2:
     )
 
     if video_file:
-        # Include confidence in the key so changing the slider re-processes
         vid_key = f"{video_file.name}_{video_file.size}_{CONFIDENCE_THRESHOLD}_{frame_skip}"
         needs_processing = st.session_state.get("vid_processed_key") != vid_key
 
@@ -436,47 +450,43 @@ with tab2:
             fire_total = smoke_total = 0
             max_conf_video = 0.0
             annotated_frames = []
-            timeline_events  = []   # (timestamp_sec, label, conf)
             last_annotated   = None
             frame_idx        = 0
 
-            while cap.isOpened():
-                ret, frame = cap.read()
-                if not ret:
-                    break
+            try:
+                while cap.isOpened():
+                    ret, frame = cap.read()
+                    if not ret:
+                        break
 
-                if frame_idx % frame_skip == 0:
-                    img     = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
-                    results = model.predict(
-                        img, conf=CONFIDENCE_THRESHOLD,
-                        iou=IOU_THRESHOLD, verbose=False
+                    if frame_idx % frame_skip == 0:
+                        img     = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+                        results = model.predict(
+                            img, conf=CONFIDENCE_THRESHOLD,
+                            iou=IOU_THRESHOLD, verbose=False
+                        )
+
+                        for box in results[0].boxes:
+                            lbl    = model.names[int(box.cls[0])]
+                            conf_v = float(box.conf[0])
+                            max_conf_video = max(max_conf_video, conf_v)
+                            if lbl.lower() == "fire":    fire_total += 1
+                            elif lbl.lower() == "smoke": smoke_total += 1
+
+                        last_annotated = results[0].plot()
+
+                        if len(annotated_frames) < 50 and last_annotated is not None:
+                            annotated_frames.append(last_annotated)
+
+                    progress.progress(
+                        min((frame_idx + 1) / max(total_frames, 1), 1.0),
+                        text=f"Frame {frame_idx+1} / {total_frames}…"
                     )
-                    timestamp_sec = frame_idx / fps
+                    frame_idx += 1
+            finally:
+                cap.release()
+                os.unlink(tfile.name)
 
-                    for box in results[0].boxes:
-                        lbl    = model.names[int(box.cls[0])]
-                        conf_v = float(box.conf[0])
-                        max_conf_video = max(max_conf_video, conf_v)
-                        if lbl.lower() == "fire":
-                            fire_total += 1
-                            timeline_events.append((timestamp_sec, "fire", conf_v))
-                        elif lbl.lower() == "smoke":
-                            smoke_total += 1
-                            timeline_events.append((timestamp_sec, "smoke", conf_v))
-
-                    last_annotated = results[0].plot()
-
-                    if len(annotated_frames) < 50 and last_annotated is not None:
-                        annotated_frames.append(last_annotated)
-
-                progress.progress(
-                    min((frame_idx + 1) / max(total_frames, 1), 1.0),
-                    text=f"Frame {frame_idx+1} / {total_frames}…"
-                )
-                frame_idx += 1
-
-            cap.release()
-            os.unlink(tfile.name)
             progress.empty()
 
             st.session_state["vid_frames"]   = annotated_frames
@@ -485,7 +495,6 @@ with tab2:
             st.session_state["vid_smoke"]    = smoke_total
             st.session_state["vid_total"]    = total_frames
             st.session_state["vid_max_conf"] = max_conf_video
-            st.session_state["vid_timeline"] = timeline_events
 
         if "vid_frames" in st.session_state and st.session_state["vid_frames"]:
             frames      = st.session_state["vid_frames"]
@@ -493,7 +502,6 @@ with tab2:
             fire_total  = st.session_state["vid_fire"]
             smoke_total = st.session_state["vid_smoke"]
             max_conf_vid = st.session_state.get("vid_max_conf", 0.0)
-            timeline     = st.session_state.get("vid_timeline", [])
 
             render_result_card(fire_total, smoke_total, max_conf_vid)
 
@@ -501,10 +509,17 @@ with tab2:
                 "Browse detected frames", 0, len(frames) - 1, 0,
                 key="vid_slider"
             )
-            st.image(frames[frame_idx], use_container_width=True)
+
+            # Smaller video frame using custom wrapper
+            b64_frame = arr_to_b64(frames[frame_idx], quality=75, max_dim=700)
+            st.markdown(
+                f'<div class="video-frame-wrap">'
+                f'<img src="data:image/jpeg;base64,{b64_frame}" />'
+                f'</div>',
+                unsafe_allow_html=True
+            )
             st.caption(f"Frame {frame_idx + 1} / {len(frames)} · {int(fps)} FPS")
 
-            # Download ZIP of annotated frames
             zip_bytes = frames_to_zip(frames)
             st.download_button(
                 "⬇ Download Annotated Frames (ZIP)",
@@ -514,13 +529,6 @@ with tab2:
                 use_container_width=True
             )
 
-            # Detection timeline
-            with st.expander(f"🕐 Detection Timeline ({len(timeline)} events)"):
-                if timeline:
-                    render_detection_timeline(timeline)
-                else:
-                    st.caption("No detections found in this video.")
-
             with st.expander("📊 Video Details"):
                 c1, c2, c3 = st.columns(3)
                 c1.metric("Total Frames", st.session_state["vid_total"])
@@ -529,7 +537,7 @@ with tab2:
 
     else:
         for k in ["vid_frames","vid_fps","vid_fire","vid_smoke","vid_total",
-                  "vid_processed_key","vid_max_conf","vid_timeline"]:
+                  "vid_processed_key","vid_max_conf"]:
             st.session_state.pop(k, None)
         st.markdown(
             '<div class="input-section">🎥 Upload a video — detection runs automatically</div>',
@@ -537,36 +545,47 @@ with tab2:
         )
 
 # ───────────────────────────────────────────
-# TAB 3: WEBCAM
+# TAB 3: WEBCAM  (no flash, same height cols)
 # ───────────────────────────────────────────
 with tab3:
+    st.markdown(
+        '<div class="webcam-info">📸 Capture a snapshot — detection runs instantly on the photo.</div>',
+        unsafe_allow_html=True
+    )
+
     cam_col, ann_col = st.columns(2)
+
     with cam_col:
-        st.markdown(
-            '<div class="webcam-info">📸 Capture a snapshot — detection runs instantly on the photo.</div>',
-            unsafe_allow_html=True
-        )
+        st.markdown('<div class="webcam-col-wrap">', unsafe_allow_html=True)
         webcam_img = st.camera_input("Capture", label_visibility="collapsed")
+        st.markdown('</div>', unsafe_allow_html=True)
 
     if webcam_img:
         img_bytes = webcam_img.getvalue()
         fire_count, smoke_count, max_conf, detections, annotated, ms, orig = run_detection_cached(img_bytes, CONFIDENCE_THRESHOLD)
 
         with ann_col:
-            st.caption(f"ANNOTATED · {ms}MS")
-            st.image(annotated, use_container_width=True)
+            st.markdown(
+                f'<div class="webcam-col-wrap">'
+                f'<div class="output-label">Annotated · {ms}ms</div>'
+                f'<img src="data:image/jpeg;base64,{arr_to_b64(annotated)}" />'
+                f'</div>',
+                unsafe_allow_html=True
+            )
 
         render_result_card(fire_count, smoke_count, max_conf)
         render_detections_list(detections)
     else:
         with ann_col:
             st.markdown(
-                '<div class="input-section" style="margin-top:2rem;">Point camera and tap the capture button</div>',
+                '<div class="webcam-col-wrap" style="justify-content:center;align-items:center;">'
+                '<div style="color:#444;font-size:0.9rem;text-align:center;">Point camera and tap capture</div>'
+                '</div>',
                 unsafe_allow_html=True
             )
 
 # ───────────────────────────────────────────
-# TAB 4: DEMO
+# TAB 4: DEMO  (click image to select, no button)
 # ───────────────────────────────────────────
 with tab4:
     if not os.path.exists(DEMO_IMAGES_DIR):
@@ -603,7 +622,11 @@ with tab4:
                 short    = fname[:12] + "…" if len(fname) > 12 else fname
 
                 with cols[ci]:
+                    # Render image card — the st.button is styled to be
+                    # invisible and sits on top of the image via CSS,
+                    # so clicking anywhere on the card triggers selection.
                     st.markdown(
+                        f'<div class="demo-card-wrap">'
                         f'<div class="demo-card" style="border:2px solid {border};border-radius:6px;'
                         f'background:#111;padding:2px;">'
                         f'<img src="data:image/jpeg;base64,{b64}" '
@@ -612,10 +635,28 @@ with tab4:
                         f'</div>'
                         f'<div style="font-size:0.55rem;color:#444;text-align:center;'
                         f'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;'
-                        f'margin-top:2px;">{short}</div>',
+                        f'margin-top:2px;">{short}</div>'
+                        f'</div>',
                         unsafe_allow_html=True
                     )
-                    if st.button("Select", key=f"ds_{idx}", use_container_width=True):
+                    # Invisible full-width button overlaid on the card
+                    btn_style = """
+                    <style>
+                    div[data-testid="stButton"]:has(button[kind="secondary"]) button {
+                        background: transparent !important;
+                        border: none !important;
+                        color: transparent !important;
+                        height: 76px !important;
+                        margin-top: -76px !important;
+                        position: relative;
+                        z-index: 10;
+                        cursor: pointer !important;
+                        width: 100% !important;
+                    }
+                    </style>
+                    """
+                    st.markdown(btn_style, unsafe_allow_html=True)
+                    if st.button(" ", key=f"ds_{idx}", use_container_width=True):
                         st.session_state.demo_selected = idx
                         st.rerun()
 
