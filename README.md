@@ -1,33 +1,31 @@
-<p align="center">
-  <img src="https://img.shields.io/badge/Python-3.10+-3776AB?style=for-the-badge&logo=python&logoColor=white" />
-  <img src="https://img.shields.io/badge/YOLOv8-Ultralytics-00FFFF?style=for-the-badge&logo=yolo&logoColor=black" />
-  <img src="https://img.shields.io/badge/Streamlit-1.28+-FF4B4B?style=for-the-badge&logo=streamlit&logoColor=white" />
-  <img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge" />
-</p>
+[![Python](https://img.shields.io/badge/Python-3.10+-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
+[![YOLOv8](https://img.shields.io/badge/YOLOv8-Ultralytics-00FFFF?style=for-the-badge&logo=yolo&logoColor=black)](https://ultralytics.com)
+[![Streamlit](https://img.shields.io/badge/Streamlit-1.28+-FF4B4B?style=for-the-badge&logo=streamlit&logoColor=white)](https://streamlit.io)
+[![Kaggle Model](https://img.shields.io/badge/Kaggle-Model-20BEFF?style=for-the-badge&logo=kaggle&logoColor=white)](https://www.kaggle.com/models/shreya129/industrial-smoke-and-fire-detection-yolov8)
+[![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](LICENSE)
 
-<h1 align="center">🔥 Fire & Smoke Detection System</h1>
+# 🔥 Industrial Fire & Smoke Detection System
 
-<p align="center">
-  <strong>AI-powered fire and smoke detection — custom-trained YOLOv8n model deployed with a Streamlit dashboard</strong>
-</p>
+**Industry-grade fire and smoke detection — custom-trained YOLOv8n model built for real-time deployment in CCTV and surveillance pipelines, with a Streamlit demo dashboard.**
 
-<p align="center">
-  <a href="https://fire-smoke-detection-app.streamlit.app/">🚀 Live Demo</a> &nbsp;·&nbsp;
-  <a href="#-model">Model</a> &nbsp;·&nbsp;
-  <a href="#-dataset--training">Dataset & Training</a> &nbsp;·&nbsp;
-  <a href="#-installation">Installation</a> &nbsp;·&nbsp;
-  <a href="#-features">Features</a>
-</p>
+[🚀 Live Demo](https://fire-smoke-detection-app.streamlit.app/) · [📦 Kaggle Model](https://www.kaggle.com/models/shreya129/industrial-smoke-and-fire-detection-yolov8) · [Installation](#-installation) · [Features](#-features)
 
 ---
 
 ## 📖 Overview
 
-A real-time fire and smoke detection application built end-to-end — from custom model training to a deployed web interface. The model was trained on 14,000+ images using YOLOv8n and achieves **0.776 mAP50** with **0.718 recall** across fire and smoke classes.
+A real-time fire and smoke detection system built end-to-end — from custom model training to a deployable inference pipeline. The model was trained on 14,000+ images using YOLOv8n and achieves **0.776 mAP50** with **0.718 recall** across fire and smoke classes.
+
+**Target deployment:** This system is designed for integration into CCTV and IP camera pipelines in industrial environments such as factories, warehouses, construction sites, and server rooms — anywhere early fire and smoke detection is critical. The Streamlit dashboard serves as a demonstration interface; the underlying model can be plugged directly into any OpenCV-based RTSP/camera stream.
 
 ---
 
-## 📊 Model
+## 📦 Model
+
+The trained model is publicly available on Kaggle:
+> 🔗 **[shreya129/industrial-smoke-and-fire-detection-yolov8](https://www.kaggle.com/models/shreya129/industrial-smoke-and-fire-detection-yolov8)**
+
+The weights (`best_shreya_v2.pt`) are also included directly in this repository for convenience.
 
 | Metric | Overall | Smoke | Fire |
 |--------|---------|-------|------|
@@ -36,7 +34,7 @@ A real-time fire and smoke detection application built end-to-end — from custo
 | **mAP50** | 0.776 | 0.830 | 0.722 |
 | **mAP50-95** | 0.440 | 0.505 | 0.374 |
 
-**Architecture:** YOLOv8n (Nano) · **Model size:** 6.2 MB · **Input:** 640×640 · **Classes:** Fire, Smoke
+**Architecture:** YOLOv8n (Nano) · **Input:** 640×640 · **Classes:** Fire, Smoke
 
 ---
 
@@ -49,48 +47,33 @@ A real-time fire and smoke detection application built end-to-end — from custo
 | **Baseline Training** | Google Colab (Tesla T4 GPU) · 20 epochs |
 | **Fine-tuning** | Kaggle Notebooks (Tesla T4 GPU) · 50 additional epochs |
 | **Base Model** | YOLOv8n pretrained on COCO |
-| **Total Epochs** | 70 (20 baseline + 50 fine-tuned) |
+| **Total Epochs** | 70 |
 | **Key Settings** | `iou=0.5`, `cos_lr=True`, `lr0=0.005`, `mixup=0.15`, `copy_paste=0.3` |
-
-**Training improvement over baseline:**
-
-| | Baseline (20 epochs) | Final (70 epochs) |
-|---|---|---|
-| Recall | 0.664 | **0.718** (+8.1%) |
-| mAP50 | 0.727 | **0.776** (+6.7%) |
-| Precision | 0.724 | **0.760** (+5.0%) |
 
 ---
 
 ## ✨ Features
 
 | Mode | Description |
-|------|-------------|
-| 📷 **Image Upload** | Upload any image — instant detection with side-by-side comparison |
+|---|---|
+| 📷 **Image Upload** | Upload any image — instant detection with annotated output |
 | 🎥 **Video Upload** | Frame-by-frame processing with live progress and aggregate stats |
 | 📹 **Webcam** | Capture a snapshot and run instant detection |
 | 🎬 **Demo Mode** | Auto-cycling slideshow through `demo_images/` — built for presentations |
-
-**Dashboard includes:** Risk assessment panel · Detection timeline · Inference time · Confidence stats · Download results
 
 ---
 
 ## 🚀 Installation
 
 ```bash
-# Clone the repository
 git clone https://github.com/shreyaa4567/fire-smoke-detection-app.git
 cd fire-smoke-detection-app
 
-# Create virtual environment
 python -m venv .venv
 .venv\Scripts\activate        # Windows
 source .venv/bin/activate     # Linux / macOS
 
-# Install dependencies
 pip install -r requirements.txt
-
-# Run the app
 streamlit run appnew.py
 ```
 
@@ -103,10 +86,10 @@ App opens at `http://localhost:8501`
 ```
 fire-smoke-detection-app/
 ├── appnew.py                 # Main Streamlit application
+├── cctv_stream.py            # CCTV / RTSP stream inference script
 ├── best_shreya_v2.pt         # Trained YOLOv8n model weights
 ├── requirements.txt          # Python dependencies
-├── demo_images/              # Images for Demo Mode slideshow
-└── samples/                  # Sample images for quick testing
+└── demo_images/              # Images for Demo Mode slideshow
 ```
 
 ---
@@ -114,15 +97,26 @@ fire-smoke-detection-app/
 ## 🛠 Technologies Used
 
 | Technology | Purpose |
-|------------|---------|
-| ![Python](https://img.shields.io/badge/Python-3776AB?style=flat-square&logo=python&logoColor=white) | Core programming language |
-| ![Streamlit](https://img.shields.io/badge/Streamlit-FF4B4B?style=flat-square&logo=streamlit&logoColor=white) | Web application framework & cloud deployment |
-| ![YOLOv8](https://img.shields.io/badge/YOLOv8-00FFFF?style=flat-square&logo=yolo&logoColor=black) | Object detection model |
-| ![OpenCV](https://img.shields.io/badge/OpenCV-5C3EE8?style=flat-square&logo=opencv&logoColor=white) | Video processing & frame extraction |
-| ![Pillow](https://img.shields.io/badge/Pillow-3776AB?style=flat-square&logo=python&logoColor=white) | Image handling & manipulation |
-| ![NumPy](https://img.shields.io/badge/NumPy-013243?style=flat-square&logo=numpy&logoColor=white) | Numerical computation |
-| ![Kaggle](https://img.shields.io/badge/Kaggle-20BEFF?style=flat-square&logo=kaggle&logoColor=white) | Model fine-tuning (T4 GPU) |
-| ![Google Colab](https://img.shields.io/badge/Google_Colab-F9AB00?style=flat-square&logo=googlecolab&logoColor=black) | Baseline model training |
+|---|---|
+| Python | Core programming language |
+| Streamlit | Web application framework & cloud deployment |
+| YOLOv8 (Ultralytics) | Object detection model |
+| OpenCV | Video processing & frame extraction |
+| Pillow | Image handling & manipulation |
+| NumPy | Numerical computation |
+| Kaggle Notebooks | Model fine-tuning (T4 GPU) |
+| Google Colab | Baseline model training |
+
+---
+
+## 🏭 Industrial Use Case
+
+Unlike generic object detectors, this model is trained specifically on real-world fire and smoke scenarios across varied lighting, environments, and scales. It is well-suited for:
+
+- **CCTV integration** — Run inference on RTSP streams from IP cameras using OpenCV + YOLOv8
+- **Factory & warehouse safety** — Early smoke detection before fire spreads
+- **Automated alerting** — Trigger alarms or notifications when fire/smoke confidence exceeds a threshold
+- **Edge deployment** — YOLOv8n's compact size makes it suitable for edge devices (Jetson Nano, Raspberry Pi with accelerator, etc.)
 
 ---
 
@@ -131,6 +125,7 @@ fire-smoke-detection-app/
 **Shreya Singh**
 - GitHub: [@shreyaa4567](https://github.com/shreyaa4567)
 - LinkedIn: [Shreya Singh](https://www.linkedin.com/in/shreya-singh-35bab7337/)
+- Kaggle: [shreya129](https://www.kaggle.com/shreya129)
 
 ---
 

@@ -177,10 +177,6 @@ div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"] {
 /* DEMO CARD — hover feedback */
 .demo-card { cursor: pointer; transition: transform 0.15s; }
 .demo-card:hover { transform: scale(1.04); filter: brightness(1.15); }
-/* Cap video frame display height */
-[data-testid="stImage"] img {
-    max-height: 50vh !important; object-fit: contain !important;
-}
 
 /* MOBILE */
 @media (max-width: 640px) {
@@ -492,7 +488,8 @@ with tab3:
         fire_count, smoke_count, max_conf, detections, annotated, ms, orig = run_detection_cached(img_bytes)
 
         with ann_col:
-            render_capped_image(annotated, f"Annotated · {ms}ms")
+            st.caption(f"ANNOTATED · {ms}MS")
+            st.image(annotated, use_container_width=True)
 
         render_result_card(fire_count, smoke_count, max_conf)
         render_detections_list(detections)
