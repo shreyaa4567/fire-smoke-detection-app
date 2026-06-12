@@ -177,6 +177,14 @@ div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"] { min-width: 
 
 .demo-card { cursor: pointer; transition: transform 0.15s; }
 .demo-card:hover { transform: scale(1.04); filter: brightness(1.15); }
+/* Cap video frame size */
+[data-testid="stImage"] img {
+    max-height: 50vh !important; object-fit: contain !important;
+}
+/* Limit camera live preview height */
+[data-testid="stCameraInput"] video {
+    max-height: 280px !important; object-fit: contain;
+}
 
 @media (max-width: 640px) {
     .header-title { font-size: 1.4rem; }
@@ -313,15 +321,26 @@ def render_detection_timeline(timeline: list):
             unsafe_allow_html=True
         )
 
-def frames_to_zip(frames: list) -> bytes:
-    """Pack annotated frames into a ZIP of JPEGs."""
+def frames_to_mp4(frames: list, fps: float = 10.0) -> bytes:
+    """Encode annotated frames into an MP4 video."""
+    if not frames:
+        return b""
+    h, w = frames[0].shape[:2]
     buf = BytesIO()
-    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
-        for i, frame in enumerate(frames):
-            img_buf = BytesIO()
-            Image.fromarray(frame).save(img_buf, format="JPEG", quality=80)
-            zf.writestr(f"frame_{i+1:04d}.jpg", img_buf.getvalue())
-    return buf.getvalue()
+    # Write to a temp file since cv2.VideoWriter needs a file path
+    import tempfile
+    tmp = tempfile.NamedTemporaryFile(suffix=".mp4", delete=False)
+    tmp.close()
+    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+    writer = cv2.VideoWriter(tmp.name, fourcc, fps, (w, h))
+    for frame in frames:
+        bgr = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+        writer.write(bgr)
+    writer.release()
+    with open(tmp.name, "rb") as f:
+        data = f.read()
+    os.unlink(tmp.name)
+    return data
 
 @st.cache_data(show_spinner=False)
 def get_demo_thumb_b64(img_path: str) -> str:
@@ -504,23 +523,17 @@ with tab2:
             st.image(frames[frame_idx], use_container_width=True)
             st.caption(f"Frame {frame_idx + 1} / {len(frames)} · {int(fps)} FPS")
 
-            # Download ZIP of annotated frames
-            zip_bytes = frames_to_zip(frames)
+            # Download annotated video
+            vid_bytes = frames_to_mp4(frames, fps)
             st.download_button(
-                "⬇ Download Annotated Frames (ZIP)",
-                zip_bytes,
-                "annotated_frames.zip",
-                "application/zip",
+                "⬇ Download Annotated Video (MP4)",
+                vid_bytes,
+                "annotated_video.mp4",
+                "video/mp4",
                 use_container_width=True
             )
 
-            # Detection timeline
-            with st.expander(f"🕐 Detection Timeline ({len(timeline)} events)"):
-                if timeline:
-                    render_detection_timeline(timeline)
-                else:
-                    st.caption("No detections found in this video.")
-
+            # Video Details only
             with st.expander("📊 Video Details"):
                 c1, c2, c3 = st.columns(3)
                 c1.metric("Total Frames", st.session_state["vid_total"])
@@ -540,12 +553,12 @@ with tab2:
 # TAB 3: WEBCAM
 # ───────────────────────────────────────────
 with tab3:
+    st.markdown(
+        '<div class="webcam-info">📸 Capture a snapshot — detection runs instantly on the photo.</div>',
+        unsafe_allow_html=True
+    )
     cam_col, ann_col = st.columns(2)
     with cam_col:
-        st.markdown(
-            '<div class="webcam-info">📸 Capture a snapshot — detection runs instantly on the photo.</div>',
-            unsafe_allow_html=True
-        )
         webcam_img = st.camera_input("Capture", label_visibility="collapsed")
 
     if webcam_img:
@@ -553,8 +566,7 @@ with tab3:
         fire_count, smoke_count, max_conf, detections, annotated, ms, orig = run_detection_cached(img_bytes, CONFIDENCE_THRESHOLD)
 
         with ann_col:
-            st.caption(f"ANNOTATED · {ms}MS")
-            st.image(annotated, use_container_width=True)
+            st.image(annotated, caption=f"Annotated · {ms}ms", use_container_width=True)
 
         render_result_card(fire_count, smoke_count, max_conf)
         render_detections_list(detections)
