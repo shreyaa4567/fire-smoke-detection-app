@@ -181,11 +181,19 @@ div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"] { min-width: 
 [data-testid="stImage"] img {
     max-height: 50vh !important; object-fit: contain !important;
 }
-/* Limit camera live preview height */
-[data-testid="stCameraInput"] video {
-    max-height: 280px !important; object-fit: contain;
+/* Webcam preview */
+[data-testid="stCameraInput"] {
+    min-height: 360px;
 }
 
+[data-testid="stCameraInput"] video {
+    max-height: 280px !important;
+    object-fit: contain !important;
+
+    transform: translateZ(0);
+    will-change: transform;
+    backface-visibility: hidden;
+}
 @media (max-width: 640px) {
     .header-title { font-size: 1.4rem; }
     .header-sub   { font-size: 0.72rem; }
@@ -554,29 +562,57 @@ with tab2:
 # ───────────────────────────────────────────
 with tab3:
     st.markdown(
-        '<div class="webcam-info">📸 Capture a snapshot — detection runs instantly on the photo.</div>',
-        unsafe_allow_html=True
-    )
+    '<div class="webcam-info">'
+    '📸 Capture a snapshot — detection runs instantly on the photo.<br>'
+    '<span style="font-size:0.78rem;color:#555;">'
+    '⚠️ If camera doesn\'t load, click the camera icon in your browser\'s address bar '
+    'and allow camera access, then refresh the page.'
+    '</span>'
+    '</div>',
+    unsafe_allow_html=True
+)
+
     cam_col, ann_col = st.columns(2)
+
     with cam_col:
-        webcam_img = st.camera_input("Capture", label_visibility="collapsed")
+        webcam_img = st.camera_input(
+            "Capture",
+            label_visibility="collapsed"
+        )
 
     if webcam_img:
         img_bytes = webcam_img.getvalue()
-        fire_count, smoke_count, max_conf, detections, annotated, ms, orig = run_detection_cached(img_bytes, CONFIDENCE_THRESHOLD)
+
+        fire_count, smoke_count, max_conf, detections, annotated, ms, orig = (
+            run_detection_cached(
+                img_bytes,
+                CONFIDENCE_THRESHOLD
+            )
+        )
 
         with ann_col:
-            st.image(annotated, caption=f"Annotated · {ms}ms", use_container_width=True)
+            st.image(
+                annotated,
+                caption=f"Annotated · {ms}ms",
+                use_container_width=True
+            )
 
-        render_result_card(fire_count, smoke_count, max_conf)
+        render_result_card(
+            fire_count,
+            smoke_count,
+            max_conf
+        )
+
         render_detections_list(detections)
+
     else:
         with ann_col:
             st.markdown(
-                '<div class="input-section" style="margin-top:2rem;">Point camera and tap the capture button</div>',
+                '<div class="input-section" style="margin-top:2rem;">'
+                'Point camera and tap the capture button'
+                '</div>',
                 unsafe_allow_html=True
             )
-
 # ───────────────────────────────────────────
 # TAB 4: DEMO
 # ───────────────────────────────────────────
@@ -656,7 +692,7 @@ with tab4:
 st.markdown("""
 <div class="footer">
     Built by <strong>Shreya Singh</strong> ·
-    <a href="https://github.com/shreyaa4567/fire-smoke-detection-app" target="_blank">GitHub</a> ·
+    <a href="https://github.com/shreyaa4567/industrial-smoke-and-fire-detection" target="_blank">GitHub</a> ·
     <a href="https://www.linkedin.com/in/shreya-singh-35bab7337/" target="_blank">LinkedIn</a>
 </div>
 """, unsafe_allow_html=True)
