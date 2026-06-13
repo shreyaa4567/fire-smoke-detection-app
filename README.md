@@ -23,6 +23,10 @@ A real-time fire and smoke detection system built end-to-end — from custom mod
 
 **Target deployment:** This system is designed for integration into CCTV and IP camera pipelines in industrial environments such as factories, warehouses, construction sites, and server rooms — anywhere early fire and smoke detection is critical. The Streamlit dashboard serves as a demonstration interface; the underlying model can be plugged directly into any OpenCV-based RTSP/camera stream.
 
+<p align="center">
+  <img src="assets/demonstration.png" alt="Fire and Smoke Detection Preview" width="900"/>
+</p>
+
 ---
 
 ## 📦 Model
@@ -71,8 +75,8 @@ The weights (`best_shreya_v2.pt`) are also included directly in this repository 
 ## 🚀 Installation
 
 ```bash
-git clone https://github.com/shreyaa4567/fire-smoke-detection-app.git
-cd fire-smoke-detection-app
+git clone https://github.com/shreyaa4567/industrial-smoke-and-fire-detection.git
+cd industrial-smoke-and-fire-detection
 
 python -m venv .venv
 .venv\Scripts\activate        # Windows
@@ -89,11 +93,12 @@ App opens at `http://localhost:8501`
 ## 📁 Project Structure
 
 ```
-fire-smoke-detection-app/
+industrial-smoke-and-fire-detection/
 ├── appnew.py                 # Main Streamlit application
 ├── cctv_stream.py            # CCTV / RTSP stream inference script
 ├── best_shreya_v2.pt         # Trained YOLOv8n model weights
 ├── requirements.txt          # Python dependencies
+├── assets/                   # Screenshots and demo images
 └── demo_images/              # Images for Demo Mode slideshow
 ```
 
